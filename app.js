@@ -47,7 +47,9 @@ function calculateBMI(height, weight) {
 
 function parseNumber(id) {
   const value = document.getElementById(id).value;
+
   if (value === "") return null;
+
   return Number(value);
 }
 
@@ -95,15 +97,33 @@ function formatValue(value) {
   return value === null || value === undefined ? "-" : value;
 }
 
+function getRecordDate(record) {
+  if (record.rawDate) {
+    return new Date(record.rawDate);
+  }
+
+  if (record.createdAt) {
+    return new Date(record.createdAt);
+  }
+
+  return null;
+}
+
 function getRecent7DayRecords() {
   const records = getRecords();
+
   const now = new Date();
   const sevenDaysAgo = new Date();
 
   sevenDaysAgo.setDate(now.getDate() - 7);
 
   return records.filter(record => {
-    const recordDate = new Date(record.rawDate);
+    const recordDate = getRecordDate(record);
+
+    if (!recordDate || isNaN(recordDate)) {
+      return false;
+    }
+
     return recordDate >= sevenDaysAgo && recordDate <= now;
   });
 }
@@ -116,6 +136,7 @@ function calculateAverage(records, key) {
   if (values.length === 0) return null;
 
   const total = values.reduce((sum, value) => sum + value, 0);
+
   return Number((total / values.length).toFixed(1));
 }
 
@@ -153,7 +174,7 @@ function renderProfile() {
         name: document.getElementById("name").value,
         sex: document.getElementById("sex").value,
         birthDate: document.getElementById("birthDate").value,
-        createdAt: new Date().toLocaleString()
+        createdAt: new Date().toISOString()
       };
 
       saveProfile(newProfile);
@@ -292,12 +313,12 @@ function renderStatus() {
 
 function renderAverage() {
   const profile = getProfile();
-  const records = getRecent7DayRecords();
+  const recentRecords = getRecent7DayRecords();
 
   const averageSection = document.getElementById("averageSection");
   const averageGrid = document.getElementById("averageGrid");
 
-  if (!profile || records.length === 0) {
+  if (!profile || recentRecords.length === 0) {
     averageSection.classList.add("hidden");
     return;
   }
@@ -318,7 +339,7 @@ function renderAverage() {
   averageGrid.innerHTML = "";
 
   items.forEach(item => {
-    const avg = calculateAverage(records, item.key);
+    const avg = calculateAverage(recentRecords, item.key);
 
     if (avg === null) return;
 
@@ -326,8 +347,11 @@ function renderAverage() {
 
     if (ranges[item.key]) {
       const status = getStatus(avg, ranges[item.key]);
-      statusHtml = `<span class="${status}">●</span>
-                    <small>正常：${ranges[item.key][0]}–${ranges[item.key][1]}</small>`;
+
+      statusHtml = `
+        <span class="${status}">●</span>
+        <small>正常：${ranges[item.key][0]}–${ranges[item.key][1]}</small>
+      `;
     }
 
     averageGrid.innerHTML += `
@@ -339,6 +363,11 @@ function renderAverage() {
       </div>
     `;
   });
+
+  if (averageGrid.innerHTML.trim() === "") {
+    averageSection.classList.add("hidden");
+    return;
+  }
 
   averageSection.classList.remove("hidden");
 }
