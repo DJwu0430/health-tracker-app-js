@@ -24,7 +24,6 @@ function calculateAge(birthDate) {
   const today = new Date();
 
   let age = today.getFullYear() - birth.getFullYear();
-
   const monthDiff = today.getMonth() - birth.getMonth();
 
   if (
@@ -41,7 +40,6 @@ function calculateBMI(height, weight) {
   if (height === null || weight === null) return null;
 
   const heightM = height / 100;
-
   if (heightM <= 0) return null;
 
   return Number((weight / (heightM * heightM)).toFixed(1));
@@ -49,9 +47,7 @@ function calculateBMI(height, weight) {
 
 function parseNumber(id) {
   const value = document.getElementById(id).value;
-
   if (value === "") return null;
-
   return Number(value);
 }
 
@@ -86,7 +82,7 @@ function getNormalRanges(age) {
 }
 
 function getStatus(value, range) {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
 
   if (value >= range[0] && value <= range[1]) {
     return "green";
@@ -96,7 +92,31 @@ function getStatus(value, range) {
 }
 
 function formatValue(value) {
-  return value === null ? "-" : value;
+  return value === null || value === undefined ? "-" : value;
+}
+
+function getRecent7DayRecords() {
+  const records = getRecords();
+  const now = new Date();
+  const sevenDaysAgo = new Date();
+
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  return records.filter(record => {
+    const recordDate = new Date(record.rawDate);
+    return recordDate >= sevenDaysAgo && recordDate <= now;
+  });
+}
+
+function calculateAverage(records, key) {
+  const values = records
+    .map(record => record[key])
+    .filter(value => value !== null && value !== undefined && !isNaN(value));
+
+  if (values.length === 0) return null;
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Number((total / values.length).toFixed(1));
 }
 
 function renderProfile() {
@@ -199,8 +219,11 @@ function setupRecordForm() {
     const height = parseNumber("height");
     const weight = parseNumber("weight");
 
+    const now = new Date();
+
     const record = {
-      createdAt: new Date().toLocaleString(),
+      rawDate: now.toISOString(),
+      createdAt: now.toLocaleString(),
       height: height,
       weight: weight,
       bmi: calculateBMI(height, weight),
@@ -249,7 +272,7 @@ function renderStatus() {
   items.forEach(item => {
     const value = latest[item.key];
 
-    if (value === null) return;
+    if (value === null || value === undefined) return;
 
     const range = ranges[item.key];
     const status = getStatus(value, range);
@@ -265,6 +288,59 @@ function renderStatus() {
   });
 
   statusSection.classList.remove("hidden");
+}
+
+function renderAverage() {
+  const profile = getProfile();
+  const records = getRecent7DayRecords();
+
+  const averageSection = document.getElementById("averageSection");
+  const averageGrid = document.getElementById("averageGrid");
+
+  if (!profile || records.length === 0) {
+    averageSection.classList.add("hidden");
+    return;
+  }
+
+  const age = calculateAge(profile.birthDate);
+  const ranges = getNormalRanges(age);
+
+  const items = [
+    { key: "sbp", label: "收縮壓", unit: "mmHg" },
+    { key: "dbp", label: "舒張壓", unit: "mmHg" },
+    { key: "heartRate", label: "心律", unit: "bpm" },
+    { key: "spo2", label: "血氧", unit: "%" },
+    { key: "temperature", label: "體溫", unit: "°C" },
+    { key: "weight", label: "體重", unit: "kg" },
+    { key: "bmi", label: "BMI", unit: "" }
+  ];
+
+  averageGrid.innerHTML = "";
+
+  items.forEach(item => {
+    const avg = calculateAverage(records, item.key);
+
+    if (avg === null) return;
+
+    let statusHtml = "";
+
+    if (ranges[item.key]) {
+      const status = getStatus(avg, ranges[item.key]);
+      statusHtml = `<span class="${status}">●</span>
+                    <small>正常：${ranges[item.key][0]}–${ranges[item.key][1]}</small>`;
+    }
+
+    averageGrid.innerHTML += `
+      <div class="status-box">
+        <div>${item.label}</div>
+        <strong>${avg} ${item.unit}</strong>
+        ${statusHtml}
+        <small>近 7 天平均</small>
+      </div>
+    `;
+  });
+
+  averageSection.classList.remove("hidden");
 }
 
 function renderChart() {
@@ -359,6 +435,7 @@ function clearRecords() {
 function renderAll() {
   renderProfile();
   renderStatus();
+  renderAverage();
   renderChart();
   renderHistory();
 }
